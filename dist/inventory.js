@@ -143,4 +143,3 @@ function productForm(id){
   };
 }
 $('#staff-role').onchange=e=>{commit(()=>state.role=e.target.value);go(state.role==='cliente'?'catalogo':'inventario');render();scrollTop()};
-render();

@@ -21,7 +21,20 @@ Para ejecutar la comprobación de las simulaciones, con Node.js instalado:
 
 ```sh
 node verify-fusion.cjs
+node verify-catalog.cjs
 ```
+
+## Catálogo y detalle del Hito 2
+
+El catálogo comercial incluye selección económica calculada desde los precios y stock, filtros combinables, ordenamiento y una ficha navegable en `/#producto/1`. Al volver del detalle se conservan los filtros. La cantidad aparece después de pulsar Agregar y se confirma mediante Agregar al carrito.
+
+`dist/storefront.js` contiene las vistas y controles del catálogo, el detalle y la carga de imágenes. `dist/storefront.css` reúne sus estilos, transiciones y tamaños adaptables. Se cargan después de las funciones base y de gestión; la inicialización de la interfaz se realiza una sola vez al final de `storefront.js`.
+
+La carga normal espera las imágenes sin añadir retrasos a filtros o cantidades. Para demostrar los esqueletos, abrir `/?carga=lenta#catalogo` o `/?carga=lenta#producto/1`. Este modo añade 650 ms una vez por vista durante la carga; es opcional y no se activa en el enlace normal. Un fallo de imagen termina la carga y ofrece reintento. La selección y el precio del producto permanecen disponibles.
+
+Los precios por kilo, litro o unidad se muestran solo para presentaciones simples que permiten calcularlos. No se calculan a partir de textos ambiguos como “Pack 2 x 500 g”.
+
+Las [verificaciones](docs/VERIFICACION_CATALOGO.md) distinguen pruebas de navegador, comprobaciones de Node y límites pendientes. Las capturas están en `docs/capturas/`.
 
 ## Datos y simulaciones
 
