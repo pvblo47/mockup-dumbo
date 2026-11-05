@@ -49,4 +49,15 @@ Versión comprobada en `https://fancy-fairy-9b4985.netlify.app/`, conservando el
 
 `verify-interactions.cjs` añade comprobaciones para la primera visita, roles, carrito vacío, ausencia de candidatos, otro diálogo abierto, persistencia del indicador y desplazamiento por categoría. `sugerencias-ventana.jpg` muestra esta revisión; la sección grande de sugerencias de las capturas anteriores fue reemplazada por un acceso compacto para volver a abrirla.
 
+## Tercera revisión: carruseles y selección por color
+
+- Se retiran los checks de los botones de categoría; conservan color activo, foco visible y `aria-pressed`.
+- Las sugerencias utilizan todos los candidatos disponibles, sin duplicar los productos del carrito. Se verifican seis candidatos con una unidad de leche en la lista, frente al límite anterior de tres.
+- El carrusel horizontal ofrece flechas izquierda/derecha y un indicador visible del rango. En escritorio se comprueba el avance de 1–3 a 2–4 y 4–6 de seis; Inicio y Fin funcionan con el foco en el carrusel. Las flechas se deshabilitan al llegar a cada extremo.
+- Agregar dos unidades conserva la posición horizontal exacta y actualiza cantidades y total. Volver al catálogo cierra el diálogo, limpia los filtros comerciales y lleva a los resultados, conservando el carrito.
+- Se prueba el avance en 390 px y el extremo final en 320 px, sin desbordamiento de la página y con las acciones del pie visibles. La entrada cero muestra un error dentro de la tarjeta y el agregado válido conserva el desplazamiento. No se prueba en un teléfono físico.
+- El banner principal incorpora flechas laterales izquierda/derecha; se comprueban ambas direcciones en escritorio y móvil emulado. El cambio automático y la preferencia de reducir movimiento se conservan.
+
+`sugerencias-carrusel.jpg` muestra esta revisión. Las pruebas automatizadas incluyen los rangos, extremos, selecciones cortas, todos los candidatos y el regreso al catálogo sin perder el carrito.
+
 Las capturas de esta revisión se guardan en `docs/capturas/`. El mockup conserva autenticación y pago simulados; las sugerencias no usan historial real ni un servicio externo.

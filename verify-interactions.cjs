@@ -80,6 +80,15 @@ run('state=seedState();state.cart={2:1}');
 assert.ok(run("carrito().includes('Para completar tu compra')"));
 run('state.cart={}');assert.ok(!run("carrito().includes('Para completar tu compra')"));
 
+// Horizontal carousel range and edges on desktop, mobile, and short selections.
+assert.deepEqual(plain('suggestionWindow(6,0,780,250,15)'),{first:1,last:3,previous:false,next:true});
+assert.deepEqual(plain('suggestionWindow(6,265,780,250,15)'),{first:2,last:4,previous:true,next:true});
+assert.deepEqual(plain('suggestionWindow(6,9999,780,250,15)'),{first:4,last:6,previous:true,next:false});
+assert.deepEqual(plain('suggestionWindow(6,9999,300,278,12)'),{first:6,last:6,previous:true,next:false});
+assert.deepEqual(plain('suggestionWindow(1,0,780,250,15)'),{first:1,last:1,previous:false,next:false});
+assert.deepEqual(plain('suggestionWindow(0,0,780,250,15)'),{first:0,last:0,previous:false,next:false});
+run('state.cart={2:1}');assert.equal(run('storeRecommendedProducts(state.products,state.cart,state.products.length).length'),6);
+
 // Offer once on the first non-empty cart visit; empty carts and other roles do not consume it.
 assert.equal(run("shouldOfferCartSuggestions(false,'cliente','carrito',1,3,false)"),true);
 for (const args of [[true,'cliente','carrito',1,3,false],[false,'cliente','carrito',0,3,false],[false,'cliente','carrito',1,0,false],[false,'trabajador','carrito',1,3,false],[false,'cliente','catalogo',1,3,false],[false,'cliente','carrito',1,3,true]]) {
@@ -91,6 +100,9 @@ run("let categoryRefresh=null;refreshStoreCatalog=options=>categoryRefresh=optio
 assert.equal(run('state.category'),'Lácteos');assert.equal(run('categoryRefresh.scroll'),true);
 run("location.hash='#carrito';browseStoreCategory('Todas')");
 assert.equal(run('storeCategoryArrival'),true);assert.equal(run("location.hash.replace(/^#/, '')"),'catalogo');
+run("closeCartSuggestions=()=>{};state.cart={2:2};state.search='leche';state.category='Lácteos';state.catalogFilters={min:'1000',max:'2000',availability:'available',economy:true};returnFromSuggestionsToCatalog()");
+assert.equal(run('cartCount()'),2);assert.equal(run('state.search'),'');assert.equal(run('state.category'),'Todas');
+assert.deepEqual(plain('storeFilters()'),{min:'',max:'',availability:'all',economy:false});
 
 // The timer advances and wraps, stops while paused/hovered/hidden, and honors reduced motion.
 for (const args of [[false,false,false,false,null],[true,false,false,false,false]]) assert.equal(run(`storeCarouselCanPlay(${args.map(a=>JSON.stringify(a)).join(',')})`),true);
@@ -105,4 +117,4 @@ run('storeCarousel.hover=false;document.hidden=true;scheduleStoreHero()');advanc
 run('document.hidden=false;storeCarousel.paused=null;matchMedia=()=>({matches:true});scheduleStoreHero()');advance(20000);assert.equal(run('storeCarousel.index'),0);
 run('storeCarousel.paused=false;scheduleStoreHero()');advance(6500);assert.equal(run('storeCarousel.index'),1);
 run('storeCarousel.paused=true;scheduleStoreHero()');
-console.log('PASS: cantidades; aviso 10s y pausas; sugerencias según stock/carrito y primera visita persistente; categorías con desplazamiento a resultados; carrusel con avance, retorno, pausas y movimiento reducido.');
+console.log('PASS: cantidades; aviso 10s y pausas; sugerencias, rangos y extremos; primera visita persistente; regreso al catálogo conservando carrito; categorías y carrusel con movimiento reducido.');

@@ -78,22 +78,72 @@ function syncCartSuggestions(page) {
 function openCartSuggestions(manual = false) {
   const dialog = $('#cart-suggestions');
   if (state.role !== 'cliente' || location.hash !== '#carrito' || !cartCount() || dialog.open || $('#modal').open) return;
-  const products = storeRecommendedProducts(state.products, state.cart, 3);
+  const products = storeRecommendedProducts(state.products, state.cart, state.products.length);
   if (!products.length || !commit(() => {state.cartSuggestionsSeen = true;})) return;
   dismissCartNotice();
   storeSuggestionIds = products.map(p => p.id); storeSuggestionAdded = 0;
   storeSuggestionReturnFocus = manual ? document.activeElement : $('#cart-title');
-  dialog.innerHTML = `<header class="cart-suggestions-header"><div><span class="store-kicker">POR SI TE FALTA ALGO</span><h2 id="cart-suggestions-title" tabindex="-1">Para completar tu compra</h2><p id="cart-suggestions-description">Elige algo más si lo necesitas, o continúa con lo que ya llevas.</p></div><button class="secondary cart-suggestions-close" onclick="closeCartSuggestions()" aria-label="Cerrar sugerencias">${storeIcon('close')}</button></header><div class="cart-suggestions-body"><div id="cart-suggestions-grid" class="store-grid store-suggestion-grid">${products.map(p => storeCard(p, 'suggest')).join('')}</div></div><footer class="cart-suggestions-footer"><p id="cart-suggestions-status" role="status" aria-live="polite">Son opcionales. Tu carrito tiene ${plural(cartCount(), 'unidad', 'unidades')}.</p><button id="cart-suggestions-done" class="secondary" onclick="closeCartSuggestions()">No agregar nada ${storeIcon('arrow')}</button></footer>`;
+  dialog.innerHTML = `<header class="cart-suggestions-header"><div><span class="store-kicker">POR SI TE FALTA ALGO</span><h2 id="cart-suggestions-title" tabindex="-1">Para completar tu compra</h2><p id="cart-suggestions-description">Recorre los productos con las flechas o desliza. Agrega solo lo que necesites.</p></div><button class="secondary cart-suggestions-close" onclick="closeCartSuggestions()" aria-label="Cerrar sugerencias">${storeIcon('close')}</button></header><div class="cart-suggestions-body"><div class="cart-suggestions-carousel" role="region" aria-roledescription="carrusel" aria-label="Productos sugeridos"><button id="suggestions-previous" class="suggestion-arrow previous" onclick="moveCartSuggestions(-1)" aria-label="Productos sugeridos anteriores" aria-controls="cart-suggestions-grid">${storeIcon('arrow')}</button><div id="cart-suggestions-grid" class="store-grid store-suggestion-grid" tabindex="0" aria-label="Deslizar productos sugeridos" aria-describedby="cart-suggestions-range">${products.map(p => storeCard(p, 'suggest')).join('')}</div><button id="suggestions-next" class="suggestion-arrow" onclick="moveCartSuggestions(1)" aria-label="Más productos sugeridos" aria-controls="cart-suggestions-grid">${storeIcon('arrow')}</button></div></div><footer class="cart-suggestions-footer"><div class="cart-suggestions-summary"><p id="cart-suggestions-status" role="status" aria-live="polite">Son opcionales. Tu carrito tiene ${plural(cartCount(), 'unidad', 'unidades')}.</p><p id="cart-suggestions-range" class="suggestion-range" role="status" aria-live="polite"></p></div><div class="cart-suggestions-actions"><button class="text-button" onclick="returnFromSuggestionsToCatalog()">Volver al catálogo</button><button id="cart-suggestions-done" class="secondary" onclick="closeCartSuggestions()">No agregar nada ${storeIcon('arrow')}</button></div></footer>`;
   dialog.showModal();
+  bindCartSuggestionCarousel();
   $('#cart-suggestions-title').focus({preventScroll: true});
 }
 
 function closeCartSuggestions() { $('#cart-suggestions').close(); }
 
+function returnFromSuggestionsToCatalog() {
+  closeCartSuggestions();
+  if (!commit(() => {state.search = ''; state.category = 'Todas'; state.catalogFilters = {min: '', max: '', availability: 'all', economy: false};})) return;
+  storeCategoryArrival = true;
+  go('catalogo');
+}
+
+function suggestionWindow(total, scrollLeft, width, cardWidth, gap) {
+  if (!total || width <= 0 || cardWidth <= 0) return {first: 0, last: 0, previous: false, next: false};
+  const step = cardWidth + gap, visible = Math.max(1, Math.floor((width + gap + 1) / step));
+  const maximum = Math.max(0, total * step - gap - width);
+  const position = Math.max(0, Math.min(maximum, scrollLeft));
+  const first = Math.min(total, Math.round(position / step) + 1);
+  return {first, last: Math.min(total, first + visible - 1), previous: position > 2, next: position < maximum - 2};
+}
+
+function syncCartSuggestionCarousel() {
+  const track = $('#cart-suggestions-grid'), firstCard = track?.querySelector('.store-card');
+  if (!firstCard) return;
+  const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+  const range = suggestionWindow(storeSuggestionIds.length, track.scrollLeft, track.clientWidth, firstCard.getBoundingClientRect().width, gap);
+  $('#suggestions-previous').disabled = !range.previous;
+  $('#suggestions-next').disabled = !range.next;
+  const label = `${range.first === range.last ? range.first : `${range.first}–${range.last}`} de ${storeSuggestionIds.length} productos sugeridos`;
+  if ($('#cart-suggestions-range').textContent !== label) $('#cart-suggestions-range').textContent = label;
+}
+
+function moveCartSuggestions(direction, edge = '') {
+  const track = $('#cart-suggestions-grid'), firstCard = track?.querySelector('.store-card');
+  if (!firstCard) return;
+  const step = firstCard.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 0);
+  const left = edge === 'start' ? 0 : edge === 'end' ? track.scrollWidth : track.scrollLeft + direction * step;
+  track.scrollTo({left, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+}
+
+function bindCartSuggestionCarousel() {
+  const track = $('#cart-suggestions-grid');
+  track.onscroll = syncCartSuggestionCarousel;
+  track.onkeydown = event => {
+    if (event.target !== track || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    moveCartSuggestions(event.key === 'ArrowLeft' ? -1 : 1, event.key === 'Home' ? 'start' : event.key === 'End' ? 'end' : '');
+  };
+  syncCartSuggestionCarousel();
+}
+
 function updateCartSuggestionAfterAdd(p, quantity) {
   storeSuggestionAdded += quantity;
   // Keep the original suggestions in place: adding a product never moves the other cards.
-  $('#cart-suggestions-grid').innerHTML = storeSuggestionIds.map(product).filter(Boolean).map(p => storeCard(p, 'suggest')).join('');
+  const track = $('#cart-suggestions-grid'), position = track.scrollLeft;
+  track.innerHTML = storeSuggestionIds.map(product).filter(Boolean).map(p => storeCard(p, 'suggest')).join('');
+  track.scrollLeft = position;
+  syncCartSuggestionCarousel();
   $('#cart-suggestions-status').textContent = `${plural(storeSuggestionAdded, 'unidad añadida', 'unidades añadidas')}. Total del carrito: ${money(cartTotal())}.`;
   $('#cart-suggestions-done').innerHTML = `Continuar al carrito ${storeIcon('arrow')}`;
 }
@@ -220,7 +270,7 @@ function storeHero() {
   const slides = storeHeroSlides();
   if (!slides.length) return '';
   storeCarousel.index = Math.min(storeCarousel.index, slides.length - 1);
-  return `<section class="store-hero store-carousel" aria-roledescription="carrusel" aria-label="Selecciones del catálogo"><h1 class="sr-only">Compra en Dumbo Supermercados</h1><div class="store-hero-slides">${slides.map((slide, i) => `<div class="store-hero-slide hero-${slide.key} ${i === storeCarousel.index ? 'is-active' : ''}" data-slide="${i}" role="group" aria-roledescription="diapositiva" aria-label="${i + 1} de ${slides.length}" ${i === storeCarousel.index ? '' : 'inert aria-hidden="true"'}><div class="store-hero-copy"><span class="store-kicker">${slide.kicker}</span><h2>${slide.title}</h2><p>${slide.description}</p><button class="store-yellow-button" onclick="${slide.category === null ? 'showStoreEconomy()' : `browseStoreCategory(${esc(JSON.stringify(slide.category))},true)`}">${slide.action} ${storeIcon('arrow')}</button><a class="store-hero-secondary" href="#catalog-results" onclick="event.preventDefault();scrollStoreResults()">Explorar todos los productos</a></div><div class="store-hero-display">${slide.products.map((p, j) => `<a class="store-hero-product ${j ? 'secondary-spotlight' : 'primary-spotlight'}" href="#producto/${p.id}" onclick="event.preventDefault();detail(${p.id})">${storePhoto(p)}<div class="store-spotlight-label"><span>${esc(p.name)}</span><small>${esc(p.unit)}</small><strong>${money(p.price)}</strong></div></a>`).join('')}<span class="store-hero-footnote">Precios de ejemplo · CLP</span></div></div>`).join('')}</div><div class="store-carousel-controls"><div class="store-carousel-dots" role="group" aria-label="Elegir imagen del banner">${slides.map((s, i) => `<button onclick="moveStoreHero(${i},true)" aria-label="Mostrar ${s.kicker.toLocaleLowerCase('es')}" aria-pressed="${i === storeCarousel.index}" data-slide-dot="${i}"><span></span></button>`).join('')}</div><span id="store-slide-count" aria-live="off">${storeCarousel.index + 1} / ${slides.length}</span><button class="store-carousel-arrow previous" onclick="moveStoreHero(-1)" aria-label="Imagen anterior">${storeIcon('arrow')}</button><button class="store-carousel-arrow" onclick="moveStoreHero(1)" aria-label="Imagen siguiente">${storeIcon('arrow')}</button><button id="store-carousel-toggle" onclick="toggleStoreHero()" aria-label="Pausar cambio automático">Pausar</button><span id="store-carousel-status" class="sr-only" role="status"></span></div></section>`;
+  return `<section class="store-hero store-carousel" aria-roledescription="carrusel" aria-label="Selecciones del catálogo"><h1 class="sr-only">Compra en Dumbo Supermercados</h1><div class="store-hero-slides">${slides.map((slide, i) => `<div class="store-hero-slide hero-${slide.key} ${i === storeCarousel.index ? 'is-active' : ''}" data-slide="${i}" role="group" aria-roledescription="diapositiva" aria-label="${i + 1} de ${slides.length}" ${i === storeCarousel.index ? '' : 'inert aria-hidden="true"'}><div class="store-hero-copy"><span class="store-kicker">${slide.kicker}</span><h2>${slide.title}</h2><p>${slide.description}</p><button class="store-yellow-button" onclick="${slide.category === null ? 'showStoreEconomy()' : `browseStoreCategory(${esc(JSON.stringify(slide.category))},true)`}">${slide.action} ${storeIcon('arrow')}</button><a class="store-hero-secondary" href="#catalog-results" onclick="event.preventDefault();scrollStoreResults()">Explorar todos los productos</a></div><div class="store-hero-display">${slide.products.map((p, j) => `<a class="store-hero-product ${j ? 'secondary-spotlight' : 'primary-spotlight'}" href="#producto/${p.id}" onclick="event.preventDefault();detail(${p.id})">${storePhoto(p)}<div class="store-spotlight-label"><span>${esc(p.name)}</span><small>${esc(p.unit)}</small><strong>${money(p.price)}</strong></div></a>`).join('')}<span class="store-hero-footnote">Precios de ejemplo · CLP</span></div></div>`).join('')}</div><button class="store-carousel-arrow previous" onclick="moveStoreHero(-1)" aria-label="Imagen anterior">${storeIcon('arrow')}</button><button class="store-carousel-arrow" onclick="moveStoreHero(1)" aria-label="Imagen siguiente">${storeIcon('arrow')}</button><div class="store-carousel-controls"><div class="store-carousel-dots" role="group" aria-label="Elegir imagen del banner">${slides.map((s, i) => `<button onclick="moveStoreHero(${i},true)" aria-label="Mostrar ${s.kicker.toLocaleLowerCase('es')}" aria-pressed="${i === storeCarousel.index}" data-slide-dot="${i}"><span></span></button>`).join('')}</div><span id="store-slide-count" aria-live="off">${storeCarousel.index + 1} / ${slides.length}</span><button id="store-carousel-toggle" onclick="toggleStoreHero()" aria-label="Pausar cambio automático">Pausar</button><span id="store-carousel-status" class="sr-only" role="status"></span></div></section>`;
 }
 
 function storeCarouselCanPlay(reduced, hidden, hovered, focused, paused) {
@@ -513,6 +563,7 @@ $('#cart-suggestions').addEventListener('click', event => {
   const box = event.currentTarget.getBoundingClientRect();
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeCartSuggestions();
 });
+window.addEventListener('resize', () => {if ($('#cart-suggestions').open) syncCartSuggestionCarousel();});
 $('#cart-notice').addEventListener('focusin', pauseCartNotice);
 $('#cart-notice').addEventListener('focusout', () => queueMicrotask(resumeCartNotice));
 document.addEventListener('visibilitychange', () => {scheduleStoreHero(); if (document.hidden) pauseCartNotice(); else resumeCartNotice();});
