@@ -1,11 +1,17 @@
 /* Small, purposeful interactions across the storefront. */
 .storefront #nav { gap: 8px; padding-block: 7px; }
+.storefront #nav.has-category-disclosure { gap: 10px; overflow: visible; }
+.storefront #nav .category-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex: 0 0 auto; min-height: 44px; padding: 10px 15px; border: 1px solid var(--store-green); border-radius: 5px; background: var(--store-green); color: white; font-size: 13px; font-weight: 600; }
+.storefront #nav .category-trigger:hover { background: #246947; color: white; }
+.storefront #nav .category-trigger[aria-expanded="true"] { background: var(--store-green-dark); border-color: var(--store-green-dark); color: white; }
+.category-direction { display: flex; transition: transform 200ms ease; }
+.categories-expanded .category-direction { transform: rotate(180deg); }
+.category-panel { flex: 1; min-width: 0; display: grid; grid-template-columns: 0fr; visibility: hidden; transition: grid-template-columns 220ms ease, visibility 220ms; }
+.categories-expanded .category-panel { grid-template-columns: 1fr; visibility: visible; }
+.category-options { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; scrollbar-color: #a0b79c transparent; }
 .storefront #nav .nav-category { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; min-height: 44px; border: 1px solid transparent; border-radius: 5px; font-size: 13px; transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
 .storefront #nav .nav-category:hover { background: #e0eadd; border-color: #ccdcca; }
 .storefront #nav .nav-category.active { color: white; background: var(--store-green); border-color: var(--store-green); font-weight: 600; }
-.storefront #nav .nav-category[data-category="Todas"] { background: var(--store-green); color: white; border-color: var(--store-green); }
-.storefront #nav .nav-category[data-category="Todas"].active { background: var(--store-green-dark); border-color: var(--store-green-dark); }
-.storefront #nav .nav-category[data-category="Todas"]:hover { background: #246947; }
 .storefront #nav .store-icon { width: 16px; height: 16px; }
 .store-suggestion-reminder { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 26px; padding: 19px 21px; border: 1px solid #dce6d8; background: #f6f8f2; border-radius: 7px; }
 .store-suggestion-reminder>div { display: flex; align-items: center; gap: 15px; }
@@ -48,6 +54,10 @@
 @media (max-width: 700px) {
   .storefront #nav { gap: 6px; }
   .storefront #nav .nav-category { padding-inline: 12px; font-size: 12px; }
+  .storefront #nav .category-trigger { padding-inline: 10px; font-size: 12px; gap: 6px; }
+  .storefront .shop-navigation-inner:has(#nav.categories-expanded) { flex-wrap: wrap; gap: 0; }
+  .storefront .nav-container:has(.categories-expanded) { flex: 1 1 100%; width: 100%; }
+  .storefront .shop-navigation-inner:has(#nav.categories-expanded) .profile { margin-left: auto; padding-block: 3px 7px; }
   .store-suggestion-reminder { align-items: start; flex-direction: column; gap: 15px; padding: 17px; }
   .store-suggestion-reminder h2 { font-size: 16px; }
   .store-suggestion-reminder>button { width: 100%; justify-content: center; }

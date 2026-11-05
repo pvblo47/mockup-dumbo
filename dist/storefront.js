@@ -13,6 +13,7 @@ let storeNoticeTimer, storeNoticeStarted = 0, storeNoticeRemaining = 0;
 let storeNoticeReturnFocus = null;
 const storeCarousel = {index: 0, timer: null, paused: null, hover: false, focus: false};
 let storeCategoryArrival = false;
+let storeCategoriesExpanded = false;
 let storeSuggestionIds = [], storeSuggestionAdded = 0, storeSuggestionReturnFocus = null;
 
 function pauseCartNotice() {
@@ -164,6 +165,31 @@ function storeIcon(name) {
 
 function storeNormalize(value) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
+}
+
+function renderStoreCategoryNavigation(page) {
+  const names = [...new Set([...categories, ...state.products.map(p => p.cat).filter(Boolean)])];
+  return `<button id="category-toggle" class="category-trigger" type="button" onclick="setStoreCategoriesExpanded(!storeCategoriesExpanded)" aria-expanded="${storeCategoriesExpanded}" aria-controls="category-panel">${storeIcon('grid')}<span>Categorías</span><span class="category-direction">${storeIcon('arrow')}</span></button><div id="category-panel" class="category-panel" aria-hidden="${!storeCategoriesExpanded}" ${storeCategoriesExpanded ? '' : 'inert'}><div id="category-options" class="category-options">${['Todas', ...names].map(c => `<button class="nav-category ${state.category === c && page === 'catalogo' ? 'active' : ''}" data-category="${esc(c)}" aria-pressed="${state.category === c && page === 'catalogo'}">${c === 'Todas' ? 'Todos los productos' : esc(c)}</button>`).join('')}</div></div>`;
+}
+
+function syncStoreCategoryDisclosure() {
+  if (state.role !== 'cliente') storeCategoriesExpanded = false;
+  const nav = $('#nav'), trigger = $('#category-toggle'), panel = $('#category-panel');
+  const open = state.role === 'cliente' && storeCategoriesExpanded;
+  nav?.classList.toggle('has-category-disclosure', state.role === 'cliente');
+  nav?.classList.toggle('categories-expanded', open);
+  trigger?.setAttribute('aria-expanded', String(open));
+  if (panel) {
+    panel.inert = !open;
+    panel.setAttribute('aria-hidden', String(!open));
+    panel.ontransitionend = event => {if (event.propertyName === 'grid-template-columns') syncStoreHeader();};
+  }
+}
+
+function setStoreCategoriesExpanded(open, restoreFocus = false) {
+  storeCategoriesExpanded = Boolean(open);
+  syncStoreHeader();
+  if (restoreFocus) $('#category-toggle')?.focus({preventScroll: true});
 }
 
 function storeFilters() {
@@ -389,6 +415,7 @@ function refreshStoreCatalog({focusId = '', focusCategory = false, scroll = fals
 }
 
 function browseStoreCategory(category, scroll = true) {
+  setStoreCategoriesExpanded(false);
   if (!commit(() => {state.role = 'cliente'; state.category = category;})) return;
   if (location.hash === '#catalogo' || !location.hash) refreshStoreCatalog({focusCategory: !scroll, scroll});
   else { storeCategoryArrival = scroll; go('catalogo'); }
@@ -404,12 +431,14 @@ function renderStoreProduct(id) {
 }
 
 function syncStoreHeader() {
+  syncStoreCategoryDisclosure();
   const total = $('#header-cart-total');
   if (total) total.textContent = money(cartTotal());
   const cart = $('.cart-link');
   if (cart) cart.setAttribute('aria-label', `Carrito: ${plural(cartCount(), 'unidad', 'unidades')}, total ${money(cartTotal())}`);
   const hint = $('#navigation-hint'), nav = $('#nav');
-  if (hint && nav) hint.hidden = nav.scrollWidth <= nav.clientWidth + 2;
+  const options = $('#category-options');
+  if (hint && nav) hint.hidden = state.role === 'cliente' ? !storeCategoriesExpanded || !options || options.scrollWidth <= options.clientWidth + 2 : nav.scrollWidth <= nav.clientWidth + 2;
 }
 
 function openStoreProduct(id) {
@@ -563,7 +592,10 @@ $('#cart-suggestions').addEventListener('click', event => {
   const box = event.currentTarget.getBoundingClientRect();
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeCartSuggestions();
 });
-window.addEventListener('resize', () => {if ($('#cart-suggestions').open) syncCartSuggestionCarousel();});
+window.addEventListener('resize', () => {syncStoreHeader(); if ($('#cart-suggestions').open) syncCartSuggestionCarousel();});
+document.addEventListener('click', event => {
+  if (storeCategoriesExpanded && !$('#nav').contains(event.target)) setStoreCategoriesExpanded(false);
+});
 $('#cart-notice').addEventListener('focusin', pauseCartNotice);
 $('#cart-notice').addEventListener('focusout', () => queueMicrotask(resumeCartNotice));
 document.addEventListener('visibilitychange', () => {scheduleStoreHero(); if (document.hidden) pauseCartNotice(); else resumeCartNotice();});
@@ -576,6 +608,7 @@ $('#headersearch').onsubmit = event => {
 };
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || $('#modal').open) return;
+  if (storeCategoriesExpanded) {event.preventDefault(); setStoreCategoriesExpanded(false, true); return;}
   const picker = document.querySelector('.store-add-picker:not([hidden])');
   if (picker) { event.preventDefault(); const [scope, id] = picker.id.replace('picker-', '').split('-'); hideQuantity(Number(id), scope); }
 });

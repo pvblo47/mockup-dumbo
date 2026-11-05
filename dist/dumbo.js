@@ -40,7 +40,7 @@ function render(){dismissCartNotice();let page=location.hash.slice(1)||'catalogo
 renderWorkspaceChrome(page);
 document.body.classList.toggle('storefront',state.role==='cliente');
 $('#role').value=state.role;$('#cartcount').textContent=cartCount();$('#shopsearch').value=state.search;
-$('#nav').innerHTML=state.role==='cliente'?['Todas',...categories].map(c=>`<button class="nav-category ${state.category===c&&page==='catalogo'?'active':''}" data-category="${esc(c)}" aria-pressed="${state.category===c&&page==='catalogo'}">${c==='Todas'?storeIcon('grid'):''}<span>${c==='Todas'?'Todos los productos':c}</span></button>`).join(''):roleLinks[state.role].map(([id,t])=>`<a href="#${id}" class="${id===page?'active':''}" ${id===page?'aria-current="page"':''}>${t}</a>`).join('');
+$('#nav').innerHTML=state.role==='cliente'?renderStoreCategoryNavigation(page):roleLinks[state.role].map(([id,t])=>`<a href="#${id}" class="${id===page?'active':''}" ${id===page?'aria-current="page"':''}>${t}</a>`).join('');
 $('#navigation-hint').textContent=state.role==='cliente'?'Desliza para ver más categorías':'Desliza para ver todas las secciones';
 const views={catalogo,carrito,acceso,inventario,clientes:()=>people(false),trabajadores:()=>people(true),reportes,pago,confirmacion};$('#app').innerHTML=detailId!==null?renderStoreProduct(detailId):views[page]();bindPage(page);if(['catalogo','carrito'].includes(page)||detailId!==null)bindStorefront(page,detailId);syncStoreHeader();bindStoreHero();syncCartSuggestions(page);
 }

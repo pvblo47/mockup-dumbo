@@ -60,4 +60,12 @@ Versión comprobada en `https://fancy-fairy-9b4985.netlify.app/`, conservando el
 
 `sugerencias-carrusel.jpg` muestra esta revisión. Las pruebas automatizadas incluyen los rangos, extremos, selecciones cortas, todos los candidatos y el regreso al catálogo sin perder el carrito.
 
+## Cuarta revisión: botón Categorías
+
+- El botón Categorías sustituye el acceso directo Todos los productos de la barra. Inicialmente las opciones están ocultas, con `aria-hidden` e `inert`; al abrir se despliegan en la misma fila hacia la derecha.
+- El botón indica apertura con `aria-expanded` y puede activarse con Enter. Tab alcanza las opciones cuando están abiertas. Escape cierra y devuelve el foco al botón; pulsar fuera también cierra.
+- Elegir Lácteos cierra el menú, muestra dos productos y deja el encabezado de resultados a unos 24 px del borde superior. Se mantienen colores activos sin checks.
+- En 390 px se comprueba el desplazamiento hasta Bebidas: muestra un producto y cierra correctamente. Se verifica ausencia de desbordamiento de página en 390 y 320 px; la indicación de desplazamiento aparece solo cuando las opciones abiertas no caben.
+- Las opciones incluyen las categorías existentes y las adicionales presentes en los productos. La navegación de gestión conserva sus enlaces.
+
 Las capturas de esta revisión se guardan en `docs/capturas/`. El mockup conserva autenticación y pago simulados; las sugerencias no usan historial real ni un servicio externo.
