@@ -49,7 +49,7 @@ const reset = ()=>run("state=seedState(); state.catalogFilters={min:'',max:'',av
   assert.ok(run("renderCatalogPage().includes('&lt;img')"));
   assert.ok(!run("renderCatalogPage().includes('<img src=x')"));
   reset();
-  run('render=()=>{};toast=()=>{};pulseCart=()=>{}');
+  run('render=()=>{};toast=()=>{};pulseCart=()=>{};showCartNotice=()=>{};refreshStoreCatalog=()=>{}');
   assert.equal(run('add(1,0)'),false); assert.equal(run('add(1,1.5)'),false);
   assert.equal(run('add(1,2)'),true); assert.equal(run('cartCount()'),2);
   assert.equal(run('add(1,23)'),false); assert.equal(run('cartCount()'),2);

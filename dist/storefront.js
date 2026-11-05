@@ -7,6 +7,60 @@ let storeRenderVersion = 0;
 let storePreviousRoute = '';
 let storeCatalogScroll = 0;
 let storeReturnProduct = null;
+const STORE_NOTICE_DURATION = 10000;
+const STORE_SLIDE_DURATION = 6500;
+let storeNoticeTimer, storeNoticeStarted = 0, storeNoticeRemaining = 0;
+let storeNoticeReturnFocus = null;
+const storeCarousel = {index: 0, timer: null, paused: null, hover: false, focus: false};
+
+function pauseCartNotice() {
+  clearTimeout(storeNoticeTimer);
+  if (storeNoticeStarted) storeNoticeRemaining = Math.max(0, storeNoticeRemaining - (Date.now() - storeNoticeStarted));
+  storeNoticeStarted = 0;
+}
+
+function resumeCartNotice() {
+  const notice = $('#cart-notice');
+  if (!notice || notice.hidden || document.hidden || notice.matches(':hover') || notice.contains(document.activeElement)) return;
+  pauseCartNotice();
+  storeNoticeStarted = Date.now();
+  storeNoticeTimer = setTimeout(() => dismissCartNotice(), storeNoticeRemaining);
+}
+
+function dismissCartNotice(returnFocus = false) {
+  pauseCartNotice();
+  const notice = $('#cart-notice');
+  if (notice) notice.hidden = true;
+  if (returnFocus && storeNoticeReturnFocus?.isConnected) storeNoticeReturnFocus.focus({preventScroll: true});
+}
+
+function showCartNotice(p, quantity) {
+  const notice = $('#cart-notice');
+  if (!notice) return;
+  clearTimeout(window.toastTimer); clearTimeout(window.toastHideTimer);
+  $('#toast').style.display = 'none';
+  pauseCartNotice();
+  // Only the message is announced; action buttons stay available without stealing focus.
+  notice.innerHTML = `<div class="store-notice-top"><span class="store-notice-check">${storeIcon('check')}</span><div><strong id="cart-notice-title">Agregado a tu carrito</strong><p>${plural(quantity, 'unidad', 'unidades')} de ${esc(p.name)}</p></div><button class="store-notice-close" onclick="dismissCartNotice(true)" aria-label="Cerrar aviso de producto agregado">${storeIcon('close')}</button></div><div class="store-notice-summary"><span>${plural(cartCount(), 'unidad', 'unidades')} en tu carrito</span><strong>${money(cartTotal())}</strong></div><div class="store-notice-actions"><a class="button" href="#carrito" onclick="dismissCartNotice()">Revisar y pagar ${storeIcon('arrow')}</a><button class="secondary" onclick="dismissCartNotice(true)">Seguir comprando</button></div>`;
+  notice.hidden = false;
+  $('#store-live-status').textContent = `${p.name}: ${plural(quantity, 'unidad agregada', 'unidades agregadas')}. Total del carrito ${money(cartTotal())}.`;
+  notice.onpointerenter = pauseCartNotice;
+  notice.onpointerleave = resumeCartNotice;
+  storeNoticeRemaining = STORE_NOTICE_DURATION;
+  resumeCartNotice();
+}
+
+function storeRecommendedProducts(products = state.products, cart = state.cart, limit = 4) {
+  const selectedCategories = new Set(products.filter(p => cart[p.id] > 0).map(p => p.cat));
+  return products.filter(p => !cart[p.id] && p.stock > 0 && Number.isFinite(p.price) && p.price > 0)
+    .slice().sort((a, b) => Number(selectedCategories.has(a.cat)) - Number(selectedCategories.has(b.cat)) || a.price - b.price || a.id - b.id).slice(0, limit);
+}
+
+function storeCartRecommendations() {
+  const list = cartCount() ? storeRecommendedProducts() : [];
+  if (!list.length) return '';
+  return `<section class="store-cart-recommendations" aria-labelledby="cart-recommendations-title"><div class="store-section-heading"><div><span class="store-kicker">¿TE FALTA ALGO?</span><h2 id="cart-recommendations-title">Para completar tu compra</h2><p>Otras categorías y precios bajos entre los productos disponibles.</p></div><a class="text-button store-section-link" href="#catalogo">Ver catálogo ${storeIcon('arrow')}</a></div>${storeGrid(list, 'recommend')}</section>`;
+}
 
 function storeIcon(name) {
   const paths = {
@@ -116,11 +170,70 @@ function storeGrid(products, scope, loading = false) {
   return `<div class="store-grid-wrap ${loading ? 'is-loading' : ''}" data-load-region aria-busy="${loading}"><div class="store-grid store-real-content" ${loading ? 'inert' : ''}>${products.map(p => storeCard(p, scope)).join('')}</div>${loading ? `<div class="store-grid store-skeleton-grid" aria-hidden="true">${products.map(storeSkeletonCard).join('')}</div>` : ''}</div>`;
 }
 
+function storeHeroSlides() {
+  const available = state.products.filter(p => p.stock > 0);
+  return [
+    {key: 'economy', kicker: 'TU COMPRA EMPIEZA AQUÍ', title: 'Buenos precios.<br>Buenas compras.', description: 'Empieza por los productos más económicos del catálogo.', action: 'Ver selección económica', category: null, products: storeEconomy(available, 2)},
+    {key: 'fresh', kicker: 'FRUTAS Y VERDURAS', title: 'Dale color<br>a tu lista.', description: 'Frutas para sumar a tu compra, con su presentación y precio a la vista.', action: 'Explorar frutas', category: 'Frutas y verduras', products: storeEconomy(available.filter(p => p.cat === 'Frutas y verduras'), 2)},
+    {key: 'pantry', kicker: 'DESPENSA Y PANADERÍA', title: 'Lo de todos<br>los días.', description: 'Arma tu lista con básicos de despensa y panadería.', action: 'Ver despensa', category: 'Despensa', products: storeEconomy(available.filter(p => ['Despensa', 'Panadería'].includes(p.cat)), 2)}
+  ].filter(slide => slide.products.length);
+}
+
 function storeHero() {
-  const products = storeEconomy();
-  if (!products.length) return '';
-  const first = products[0], second = products[1];
-  return `<section class="store-hero" aria-labelledby="store-hero-title"><div class="store-hero-copy"><span class="store-kicker">TU COMPRA EMPIEZA AQUÍ</span><h1 id="store-hero-title">Los más económicos<br>del catálogo<span>.</span></h1><p>Una selección de productos disponibles,<br class="desktop-only"> ordenados por el precio de su presentación.</p><button class="store-yellow-button" onclick="showStoreEconomy()">Ver selección económica ${storeIcon('arrow')}</button><a class="store-hero-secondary" href="#catalog-results" onclick="event.preventDefault();scrollStoreResults()">Explorar todos los productos</a></div><div class="store-hero-display"><a class="store-hero-product primary-spotlight" href="#producto/${first.id}" onclick="event.preventDefault();detail(${first.id})">${storePhoto(first)}<div class="store-spotlight-label"><span>${esc(first.name)}</span><small>${esc(first.unit)}</small><strong>${money(first.price)}</strong></div></a>${second ? `<a class="store-hero-product secondary-spotlight" href="#producto/${second.id}" onclick="event.preventDefault();detail(${second.id})">${storePhoto(second)}<div class="store-spotlight-label"><span>${esc(second.name)}</span><small>${esc(second.unit)}</small><strong>${money(second.price)}</strong></div></a>` : ''}<span class="store-hero-footnote">Precios de ejemplo · CLP</span></div></section>`;
+  const slides = storeHeroSlides();
+  if (!slides.length) return '';
+  storeCarousel.index = Math.min(storeCarousel.index, slides.length - 1);
+  return `<section class="store-hero store-carousel" aria-roledescription="carrusel" aria-label="Selecciones del catálogo"><h1 class="sr-only">Compra en Dumbo Supermercados</h1><div class="store-hero-slides">${slides.map((slide, i) => `<div class="store-hero-slide hero-${slide.key} ${i === storeCarousel.index ? 'is-active' : ''}" data-slide="${i}" role="group" aria-roledescription="diapositiva" aria-label="${i + 1} de ${slides.length}" ${i === storeCarousel.index ? '' : 'inert aria-hidden="true"'}><div class="store-hero-copy"><span class="store-kicker">${slide.kicker}</span><h2>${slide.title}</h2><p>${slide.description}</p><button class="store-yellow-button" onclick="${slide.category === null ? 'showStoreEconomy()' : `browseStoreCategory(${esc(JSON.stringify(slide.category))},true)`}">${slide.action} ${storeIcon('arrow')}</button><a class="store-hero-secondary" href="#catalog-results" onclick="event.preventDefault();scrollStoreResults()">Explorar todos los productos</a></div><div class="store-hero-display">${slide.products.map((p, j) => `<a class="store-hero-product ${j ? 'secondary-spotlight' : 'primary-spotlight'}" href="#producto/${p.id}" onclick="event.preventDefault();detail(${p.id})">${storePhoto(p)}<div class="store-spotlight-label"><span>${esc(p.name)}</span><small>${esc(p.unit)}</small><strong>${money(p.price)}</strong></div></a>`).join('')}<span class="store-hero-footnote">Precios de ejemplo · CLP</span></div></div>`).join('')}</div><div class="store-carousel-controls"><div class="store-carousel-dots" role="group" aria-label="Elegir imagen del banner">${slides.map((s, i) => `<button onclick="moveStoreHero(${i},true)" aria-label="Mostrar ${s.kicker.toLocaleLowerCase('es')}" aria-pressed="${i === storeCarousel.index}" data-slide-dot="${i}"><span></span></button>`).join('')}</div><span id="store-slide-count" aria-live="off">${storeCarousel.index + 1} / ${slides.length}</span><button class="store-carousel-arrow previous" onclick="moveStoreHero(-1)" aria-label="Imagen anterior">${storeIcon('arrow')}</button><button class="store-carousel-arrow" onclick="moveStoreHero(1)" aria-label="Imagen siguiente">${storeIcon('arrow')}</button><button id="store-carousel-toggle" onclick="toggleStoreHero()" aria-label="Pausar cambio automático">Pausar</button><span id="store-carousel-status" class="sr-only" role="status"></span></div></section>`;
+}
+
+function storeCarouselCanPlay(reduced, hidden, hovered, focused, paused) {
+  // A deliberate press of Reproducir can opt in; reduced motion still removes transitions.
+  return !hidden && !hovered && !focused && (paused === false || (paused === null && !reduced));
+}
+
+function scheduleStoreHero() {
+  clearTimeout(storeCarousel.timer);
+  const hero = $('.store-carousel');
+  if (!hero) return;
+  const paused = storeCarousel.paused ?? matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const toggle = $('#store-carousel-toggle');
+  toggle.textContent = paused ? 'Reproducir' : 'Pausar';
+  toggle.setAttribute('aria-label', paused ? 'Reproducir cambio automático de imágenes' : 'Pausar cambio automático de imágenes');
+  const playable = storeCarouselCanPlay(matchMedia('(prefers-reduced-motion: reduce)').matches, document.hidden, storeCarousel.hover, storeCarousel.focus, storeCarousel.paused);
+  if (playable && storeHeroSlides().length > 1) storeCarousel.timer = setTimeout(() => moveStoreHero(1, false, false), STORE_SLIDE_DURATION);
+}
+
+function moveStoreHero(value, absolute = false, manual = true) {
+  const count = storeHeroSlides().length;
+  if (!count) return;
+  storeCarousel.index = ((absolute ? value : storeCarousel.index + value) % count + count) % count;
+  document.querySelectorAll('[data-slide]').forEach(slide => {
+    const active = Number(slide.dataset.slide) === storeCarousel.index;
+    slide.classList.toggle('is-active', active); slide.inert = !active;
+    if (active) slide.removeAttribute('aria-hidden'); else slide.setAttribute('aria-hidden', 'true');
+  });
+  document.querySelectorAll('[data-slide-dot]').forEach(dot => dot.setAttribute('aria-pressed', Number(dot.dataset.slideDot) === storeCarousel.index ? 'true' : 'false'));
+  $('#store-slide-count').textContent = `${storeCarousel.index + 1} / ${count}`;
+  if (manual) $('#store-carousel-status').textContent = `Imagen ${storeCarousel.index + 1} de ${count}.`;
+  scheduleStoreHero();
+}
+
+function toggleStoreHero() {
+  const paused = storeCarousel.paused ?? matchMedia('(prefers-reduced-motion: reduce)').matches;
+  storeCarousel.paused = !paused;
+  scheduleStoreHero();
+}
+
+function bindStoreHero() {
+  clearTimeout(storeCarousel.timer);
+  const hero = $('.store-carousel');
+  if (!hero) return;
+  storeCarousel.hover = hero.matches(':hover'); storeCarousel.focus = hero.contains(document.activeElement);
+  hero.onpointerenter = () => {storeCarousel.hover = true; scheduleStoreHero();};
+  hero.onpointerleave = () => {storeCarousel.hover = false; scheduleStoreHero();};
+  hero.addEventListener('focusin', () => {storeCarousel.focus = true; scheduleStoreHero();});
+  hero.addEventListener('focusout', () => queueMicrotask(() => {storeCarousel.focus = hero.contains(document.activeElement); scheduleStoreHero();}));
+  scheduleStoreHero();
 }
 
 function storeEconomySection() {
@@ -142,7 +255,7 @@ function storeChips() {
   if (filters.min !== '' || filters.max !== '') chips.push(['price', `${filters.min !== '' ? 'Desde ' + money(Number(filters.min)) : 'Sin mínimo'} · ${filters.max !== '' ? 'hasta ' + money(Number(filters.max)) : 'sin máximo'}`]);
   if (filters.availability !== 'all') chips.push(['availability', filters.availability === 'empty' ? 'Sin stock' : 'Con stock']);
   if (filters.economy) chips.push(['economy', 'Selección económica']);
-  return chips.length ? `<div class="store-active-filters" aria-label="Filtros activos">${chips.map(([key, label]) => `<button onclick="removeStoreFilter('${key}')" aria-label="Quitar filtro ${esc(label)}">${esc(label)} ${storeIcon('close')}</button>`).join('')}<button class="store-clear-all" onclick="resetStoreFilters()">Limpiar todos</button></div>` : '';
+  return chips.length ? `<div class="store-active-filters" aria-label="Filtros activos">${chips.map(([key, label]) => `<button onclick="removeStoreFilter('${key}')" aria-label="Quitar filtro ${esc(label)}">${esc(label)} ${storeIcon('close')}</button>`).join('')}<button class="store-clear-all" onclick="resetStoreFilters()">Limpiar todos</button></div>` : '<div class="store-active-filters" aria-label="Filtros activos"></div>';
 }
 
 function storeEmpty(title = 'No encontramos productos', message = 'Prueba con otro nombre o ajusta los filtros.') {
@@ -150,11 +263,48 @@ function storeEmpty(title = 'No encontramos productos', message = 'Prueba con ot
 }
 
 function renderCatalogPage() {
+  return `<div class="store-catalog-page">${storeHero()}${storeEconomySection()}${renderStoreCatalogResults()}</div>`;
+}
+
+function renderStoreCatalogResults() {
   const filters = storeFilters(), list = storeSelection();
-  const landing = !state.search && state.category === 'Todas' && filters.min === '' && filters.max === '' && filters.availability === 'all' && !filters.economy;
   const loading = storeNeedsLoading('catalogo', null);
   const title = filters.economy ? 'Selección económica' : state.search ? `Resultados para “${esc(state.search)}”` : state.category === 'Todas' ? 'Todos los productos' : esc(state.category);
-  return `<div class="store-catalog-page">${landing ? storeHero() + storeEconomySection() : '<nav class="store-breadcrumb" aria-label="Ruta de navegación"><a href="#catalogo" onclick="event.preventDefault();resetStoreFilters()">Inicio</a><span aria-hidden="true">/</span><span>Catálogo</span></nav>'}<section id="catalog-results" class="store-catalog-section" aria-labelledby="catalog-title"><div class="store-section-heading store-catalog-title"><div><span class="store-kicker">DUMBO SUPERMERCADOS</span><h2 id="catalog-title" tabindex="-1">${title}</h2><p id="store-result-count" role="status" aria-live="polite">${plural(list.length)}${filters.economy ? ' disponibles con los menores precios de tu selección' : ' en esta selección'}</p></div><a class="store-cart-shortcut" href="#carrito">${storeIcon('basket')} Revisar carrito <span>${cartCount()}</span></a></div><div class="store-catalog-layout"><aside class="store-sidebar" aria-label="Filtros del catálogo">${storeFilterForm('desktop')}</aside><div class="store-results"><div class="store-toolbar"><button id="store-filter-button" class="secondary store-filter-button" onclick="openStoreFilters()" aria-haspopup="dialog" aria-controls="modal">${storeIcon('filter')} Filtros</button><span class="store-toolbar-count">${plural(list.length)}</span><label class="store-sort" for="sort">Ordenar por<select id="sort"><option value="default" ${state.sort === 'default' ? 'selected' : ''}>Orden del catálogo</option><option value="low" ${state.sort === 'low' ? 'selected' : ''}>Menor precio</option><option value="high" ${state.sort === 'high' ? 'selected' : ''}>Mayor precio</option><option value="name" ${state.sort === 'name' ? 'selected' : ''}>Nombre</option></select></label></div>${storeChips()}${storeAssetNotice()}${list.length ? storeGrid(list, 'catalog', loading) : storeEmpty()}<p class="store-catalog-note">Precios en pesos chilenos. Las cantidades corresponden a la presentación indicada.</p></div></div></section></div>`;
+  return `<section id="catalog-results" class="store-catalog-section" aria-labelledby="catalog-title"><div class="store-section-heading store-catalog-title"><div><span class="store-kicker">DUMBO SUPERMERCADOS</span><h2 id="catalog-title" tabindex="-1">${title}</h2><p id="store-result-count" role="status" aria-live="polite">${plural(list.length)}${filters.economy ? ' disponibles con los menores precios de tu selección' : ' en esta selección'}</p></div><a class="store-cart-shortcut" href="#carrito">${storeIcon('basket')} Revisar carrito <span>${cartCount()}</span></a></div><div class="store-catalog-layout"><aside class="store-sidebar" aria-label="Filtros del catálogo">${storeFilterForm('desktop')}</aside><div class="store-results"><div class="store-toolbar"><button id="store-filter-button" class="secondary store-filter-button" onclick="openStoreFilters()" aria-haspopup="dialog" aria-controls="modal">${storeIcon('filter')} Filtros</button><span class="store-toolbar-count">${plural(list.length)}</span><label class="store-sort" for="sort">Ordenar por<select id="sort"><option value="default" ${state.sort === 'default' ? 'selected' : ''}>Orden del catálogo</option><option value="low" ${state.sort === 'low' ? 'selected' : ''}>Menor precio</option><option value="high" ${state.sort === 'high' ? 'selected' : ''}>Mayor precio</option><option value="name" ${state.sort === 'name' ? 'selected' : ''}>Nombre</option></select></label></div>${storeChips()}${storeAssetNotice()}${list.length ? storeGrid(list, 'catalog', loading) : storeEmpty()}<p class="store-catalog-note">Precios en pesos chilenos. Las cantidades corresponden a la presentación indicada.</p></div></div></section>`;
+}
+
+// Preserve the banner, its timer and the page geometry while only refreshing results.
+function refreshStoreCatalog({focusId = '', focusCategory = false, scroll = false} = {}) {
+  const section = $('#catalog-results');
+  if (!section || !section.isConnected) { render(); return; }
+  const active = document.activeElement;
+  const radio = active?.matches('input[type="radio"]') ? {name: active.name, value: active.value} : null;
+  const id = focusId || active?.id;
+  const beforeTop = section.getBoundingClientRect().top;
+  section.outerHTML = renderStoreCatalogResults();
+  document.querySelectorAll('#nav [data-category]').forEach(button => {
+    const selected = button.dataset.category === state.category;
+    button.classList.toggle('active', selected); button.setAttribute('aria-pressed', String(selected));
+  });
+  $('#shopsearch').value = state.search;
+  bindStorefront('catalogo', null); syncStoreHeader();
+  const nextSection = $('#catalog-results');
+  if (scroll) scrollStoreResults();
+  else {
+    window.scrollBy({top: nextSection.getBoundingClientRect().top - beforeTop, behavior: 'instant'});
+    let nextFocus = id ? document.getElementById(id) : null;
+    if (radio) nextFocus = Array.from(nextSection.querySelectorAll('input[type="radio"]')).find(input => input.name === radio.name && input.value === radio.value);
+    if (focusCategory) nextFocus = Array.from(document.querySelectorAll('#nav [data-category]')).find(button => button.dataset.category === state.category);
+    nextFocus?.focus({preventScroll: true});
+  }
+  $('.store-results')?.classList.add('store-results-updated');
+  $('#store-live-status').textContent = `${plural(storeSelection().length)} en esta selección.`;
+}
+
+function browseStoreCategory(category, scroll = false) {
+  if (!commit(() => {state.role = 'cliente'; state.category = category;})) return;
+  if (location.hash === '#catalogo' || !location.hash) refreshStoreCatalog({focusCategory: !scroll, scroll});
+  else go('catalogo');
 }
 
 function renderStoreProduct(id) {
@@ -192,13 +342,13 @@ function scrollStoreResults() {
 
 function showStoreEconomy() {
   if (!commit(() => { state.search = ''; state.category = 'Todas'; state.sort = 'low'; state.catalogFilters = {min: '', max: '', availability: 'available', economy: true}; })) return;
-  if (location.hash === '#catalogo' || !location.hash) { render(); scrollStoreResults(); }
+  if (location.hash === '#catalogo' || !location.hash) { refreshStoreCatalog({scroll: true}); }
   else go('catalogo');
 }
 
 function resetStoreFilters() {
   if (!commit(() => { state.search = ''; state.category = 'Todas'; state.sort = 'default'; state.catalogFilters = {min: '', max: '', availability: 'all', economy: false}; })) return;
-  if (location.hash === '#catalogo' || !location.hash) { render(); scrollStoreResults(); }
+  if (location.hash === '#catalogo' || !location.hash) { refreshStoreCatalog({scroll: true}); }
   else go('catalogo');
 }
 
@@ -212,7 +362,7 @@ function removeStoreFilter(key) {
     if (key === 'economy') filters.economy = false;
     state.catalogFilters = filters;
   })) return;
-  render(); $('#catalog-title')?.focus({preventScroll: true});
+  refreshStoreCatalog({focusId: 'catalog-title'});
 }
 
 function storeValidateRange(minValue, maxValue) {
@@ -235,10 +385,7 @@ function applyStoreFilterForm(form) {
   const filters = storeFilters();
   if (!commit(() => { state.category = values.get('category') || 'Todas'; state.catalogFilters = {...filters, min: range.min, max: range.max, availability: values.get('availability') || 'all'}; })) return false;
   if (scope === 'mobile') closeModal();
-  render();
-  if (scope === 'mobile') $('#store-filter-button')?.focus();
-  else $('#catalog-title')?.focus({preventScroll: true});
-  toast(plural(storeSelection().length) + ' en tu selección.');
+  refreshStoreCatalog({focusId: scope === 'mobile' ? 'store-filter-button' : ''});
   return true;
 }
 
@@ -289,7 +436,7 @@ function bindStorefront(route, id) {
     form.querySelectorAll('input[type="radio"]').forEach(input => input.onchange = () => applyStoreFilterForm(form));
   }
   const sort = $('#sort');
-  if (sort) sort.onchange = event => { if (commit(() => {state.sort = event.target.value;})) { render(); $('#sort')?.focus(); } };
+  if (sort) sort.onchange = event => { if (commit(() => {state.sort = event.target.value;})) { refreshStoreCatalog({focusId: 'sort'}); } };
   const sources = storeRouteAssets(id);
   const demonstration = storeSlowMode() && !storeLoadedRoutes.has(route);
   const wait = demonstration ? new Promise(resolve => setTimeout(resolve, 650)) : Promise.resolve();
@@ -316,10 +463,15 @@ function bindStorefront(route, id) {
 }
 
 // Browser initialization. Kept separate so the pure selectors can be tested.
+$('#cart-notice').addEventListener('focusin', pauseCartNotice);
+$('#cart-notice').addEventListener('focusout', () => queueMicrotask(resumeCartNotice));
+document.addEventListener('visibilitychange', () => {scheduleStoreHero(); if (document.hidden) pauseCartNotice(); else resumeCartNotice();});
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', scheduleStoreHero);
+window.addEventListener('hashchange', () => dismissCartNotice());
 $('#headersearch').onsubmit = event => {
   event.preventDefault(); const query = $('#shopsearch').value.trim();
   if (!commit(() => {state.search = query; state.role = 'cliente';})) return;
-  if (location.hash === '#catalogo' || !location.hash) { render(); scrollStoreResults(); } else go('catalogo');
+  if (location.hash === '#catalogo' || !location.hash) { refreshStoreCatalog({scroll: true}); } else go('catalogo');
 };
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || $('#modal').open) return;

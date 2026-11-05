@@ -22,6 +22,7 @@ Para ejecutar la comprobación de las simulaciones, con Node.js instalado:
 ```sh
 node verify-fusion.cjs
 node verify-catalog.cjs
+node verify-interactions.cjs
 ```
 
 ## Catálogo y detalle del Hito 2
@@ -35,6 +36,14 @@ La carga normal espera las imágenes sin añadir retrasos a filtros o cantidades
 Los precios por kilo, litro o unidad se muestran solo para presentaciones simples que permiten calcularlos. No se calculan a partir de textos ambiguos como “Pack 2 x 500 g”.
 
 Las [verificaciones](docs/VERIFICACION_CATALOGO.md) distinguen pruebas de navegador, comprobaciones de Node y límites pendientes. Las capturas están en `docs/capturas/`.
+
+### Carrito, filtros y carrusel
+
+El banner reúne tres selecciones con fotografías y precios del catálogo. Cambia cada 6,5 segundos, ofrece flechas, indicadores y pausa, y se detiene al interactuar con él o cambiar de pestaña. Con “reducir movimiento” inicia detenido; Reproducir permite activarlo expresamente, conservando los cambios sin animación.
+
+Los filtros actualizan únicamente los resultados: el banner conserva su tamaño, imagen y temporizador. El aviso de producto agregado dura 10 segundos de tiempo activo, pausa su cierre al pasar el puntero o usar sus controles con teclado, y permite revisar/pagar el carrito o seguir comprando. El carrito sugiere hasta cuatro productos disponibles que todavía no están en la lista; prioriza otras categorías y después el precio. Es una selección calculada en la sesión.
+
+`dist/interaction.css` contiene los estilos de estas mejoras. Los recursos CSS/JS de `index.html` incluyen una versión de URL; actualizarla al publicar cambios evita mezclar archivos nuevos con copias antiguas del navegador. Las [pruebas de interacción](docs/VERIFICACION_INTERACCIONES.md) amplían la evidencia del catálogo.
 
 ## Datos y simulaciones
 
