@@ -12,6 +12,8 @@ const STORE_SLIDE_DURATION = 6500;
 let storeNoticeTimer, storeNoticeStarted = 0, storeNoticeRemaining = 0;
 let storeNoticeReturnFocus = null;
 const storeCarousel = {index: 0, timer: null, paused: null, hover: false, focus: false};
+let storeCategoryArrival = false;
+let storeSuggestionIds = [], storeSuggestionAdded = 0, storeSuggestionReturnFocus = null;
 
 function pauseCartNotice() {
   clearTimeout(storeNoticeTimer);
@@ -59,12 +61,47 @@ function storeRecommendedProducts(products = state.products, cart = state.cart, 
 function storeCartRecommendations() {
   const list = cartCount() ? storeRecommendedProducts() : [];
   if (!list.length) return '';
-  return `<section class="store-cart-recommendations" aria-labelledby="cart-recommendations-title"><div class="store-section-heading"><div><span class="store-kicker">¿TE FALTA ALGO?</span><h2 id="cart-recommendations-title">Para completar tu compra</h2><p>Otras categorías y precios bajos entre los productos disponibles.</p></div><a class="text-button store-section-link" href="#catalogo">Ver catálogo ${storeIcon('arrow')}</a></div>${storeGrid(list, 'recommend')}</section>`;
+  return `<section class="store-suggestion-reminder" aria-labelledby="cart-recommendations-title"><div>${storeIcon('basket')}<div><h2 id="cart-recommendations-title">Para completar tu compra</h2><p>¿Te falta algo? Puedes volver a ver las sugerencias.</p></div></div><button id="cart-suggestions-trigger" class="secondary" onclick="openCartSuggestions(true)" aria-haspopup="dialog" aria-controls="cart-suggestions">Ver sugerencias ${storeIcon('arrow')}</button></section>`;
+}
+
+function shouldOfferCartSuggestions(seen, role, page, units, available, anotherDialogOpen) {
+  return !seen && role === 'cliente' && page === 'carrito' && units > 0 && available > 0 && !anotherDialogOpen;
+}
+
+function syncCartSuggestions(page) {
+  const dialog = $('#cart-suggestions');
+  if (!dialog) return;
+  if (state.role !== 'cliente' || page !== 'carrito') { if (dialog.open) dialog.close(); return; }
+  if (shouldOfferCartSuggestions(state.cartSuggestionsSeen, state.role, page, cartCount(), storeRecommendedProducts().length, $('#modal').open || dialog.open)) openCartSuggestions();
+}
+
+function openCartSuggestions(manual = false) {
+  const dialog = $('#cart-suggestions');
+  if (state.role !== 'cliente' || location.hash !== '#carrito' || !cartCount() || dialog.open || $('#modal').open) return;
+  const products = storeRecommendedProducts(state.products, state.cart, 3);
+  if (!products.length || !commit(() => {state.cartSuggestionsSeen = true;})) return;
+  dismissCartNotice();
+  storeSuggestionIds = products.map(p => p.id); storeSuggestionAdded = 0;
+  storeSuggestionReturnFocus = manual ? document.activeElement : $('#cart-title');
+  dialog.innerHTML = `<header class="cart-suggestions-header"><div><span class="store-kicker">POR SI TE FALTA ALGO</span><h2 id="cart-suggestions-title" tabindex="-1">Para completar tu compra</h2><p id="cart-suggestions-description">Elige algo más si lo necesitas, o continúa con lo que ya llevas.</p></div><button class="secondary cart-suggestions-close" onclick="closeCartSuggestions()" aria-label="Cerrar sugerencias">${storeIcon('close')}</button></header><div class="cart-suggestions-body"><div id="cart-suggestions-grid" class="store-grid store-suggestion-grid">${products.map(p => storeCard(p, 'suggest')).join('')}</div></div><footer class="cart-suggestions-footer"><p id="cart-suggestions-status" role="status" aria-live="polite">Son opcionales. Tu carrito tiene ${plural(cartCount(), 'unidad', 'unidades')}.</p><button id="cart-suggestions-done" class="secondary" onclick="closeCartSuggestions()">No agregar nada ${storeIcon('arrow')}</button></footer>`;
+  dialog.showModal();
+  $('#cart-suggestions-title').focus({preventScroll: true});
+}
+
+function closeCartSuggestions() { $('#cart-suggestions').close(); }
+
+function updateCartSuggestionAfterAdd(p, quantity) {
+  storeSuggestionAdded += quantity;
+  // Keep the original suggestions in place: adding a product never moves the other cards.
+  $('#cart-suggestions-grid').innerHTML = storeSuggestionIds.map(product).filter(Boolean).map(p => storeCard(p, 'suggest')).join('');
+  $('#cart-suggestions-status').textContent = `${plural(storeSuggestionAdded, 'unidad añadida', 'unidades añadidas')}. Total del carrito: ${money(cartTotal())}.`;
+  $('#cart-suggestions-done').innerHTML = `Continuar al carrito ${storeIcon('arrow')}`;
 }
 
 function storeIcon(name) {
   const paths = {
     arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     filter: '<path d="M4 6h16M7 12h10m-7 6h4"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/>',
     basket: '<path d="m5 9 4-6m10 6-4-6M3 9h18l-2 12H5L3 9Zm6 4v4m6-4v4"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>',
@@ -301,10 +338,10 @@ function refreshStoreCatalog({focusId = '', focusCategory = false, scroll = fals
   $('#store-live-status').textContent = `${plural(storeSelection().length)} en esta selección.`;
 }
 
-function browseStoreCategory(category, scroll = false) {
+function browseStoreCategory(category, scroll = true) {
   if (!commit(() => {state.role = 'cliente'; state.category = category;})) return;
   if (location.hash === '#catalogo' || !location.hash) refreshStoreCatalog({focusCategory: !scroll, scroll});
-  else go('catalogo');
+  else { storeCategoryArrival = scroll; go('catalogo'); }
 }
 
 function renderStoreProduct(id) {
@@ -456,13 +493,26 @@ function bindStorefront(route, id) {
     });
     if (route !== previous && id !== null) $('#store-product-title')?.focus({preventScroll: true});
   });
-  if (route === 'catalogo' && previous.startsWith('producto/')) {
+  if (route === 'catalogo' && storeCategoryArrival) {
+    storeCategoryArrival = false;
+    scrollStoreResults();
+  } else if (route === 'catalogo' && previous.startsWith('producto/')) {
     window.scrollTo({top: storeCatalogScroll, behavior: 'auto'});
     $(`#product-link-catalog-${storeReturnProduct}`)?.focus({preventScroll: true});
   }
 }
 
 // Browser initialization. Kept separate so the pure selectors can be tested.
+$('#cart-suggestions').addEventListener('close', () => {
+  if (state.role !== 'cliente' || location.hash !== '#carrito') return;
+  const target = storeSuggestionReturnFocus?.isConnected ? storeSuggestionReturnFocus : document.getElementById(storeSuggestionReturnFocus?.id) || $('#cart-title');
+  target?.focus({preventScroll: true});
+});
+$('#cart-suggestions').addEventListener('click', event => {
+  if (event.target !== event.currentTarget) return;
+  const box = event.currentTarget.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeCartSuggestions();
+});
 $('#cart-notice').addEventListener('focusin', pauseCartNotice);
 $('#cart-notice').addEventListener('focusout', () => queueMicrotask(resumeCartNotice));
 document.addEventListener('visibilitychange', () => {scheduleStoreHero(); if (document.hidden) pauseCartNotice(); else resumeCartNotice();});
@@ -476,6 +526,6 @@ $('#headersearch').onsubmit = event => {
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || $('#modal').open) return;
   const picker = document.querySelector('.store-add-picker:not([hidden])');
-  if (picker) { const [scope, id] = picker.id.replace('picker-', '').split('-'); hideQuantity(Number(id), scope); }
+  if (picker) { event.preventDefault(); const [scope, id] = picker.id.replace('picker-', '').split('-'); hideQuantity(Number(id), scope); }
 });
 render();

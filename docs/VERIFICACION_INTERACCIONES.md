@@ -37,4 +37,16 @@ Evidencia: `banner-carrusel.jpg`, `carrito-sugerencias.jpg` y `aviso-carrito.jpg
 
 Versión comprobada en `https://fancy-fairy-9b4985.netlify.app/`, conservando el acceso privado de Netlify. La revisión móvil de producción detectó que la barra de herramientas del propietario cubría las acciones del aviso. El aviso se eleva cuando esa barra está presente; la posición normal se conserva en el resto de los alojamientos.
 
+## Segunda revisión: categorías y sugerencias opcionales
+
+- La navegación comercial lleva al encabezado y a los productos filtrados; también se comprueba al entrar desde el carrito. Todos los productos es un botón verde y la categoría activa tiene fondo verde y check, además de `aria-pressed`.
+- Las sugerencias pasan a un diálogo nativo sobre el carrito. Se abre una vez por sesión en la primera visita con productos y candidatos disponibles. Una visita con carrito vacío no consume esa aparición. El indicador se conserva al recargar.
+- No agregar nada, X y Escape permiten volver al carrito sin cambios. Ver sugerencias vuelve a abrir el diálogo a petición. El fondo queda fuera de la navegación de teclado mientras está abierto.
+- Agregar dos unidades de arroz actualiza las líneas del carrito y el total detrás del diálogo, conserva las tres tarjetas en su lugar y cambia el cierre a Continuar al carrito. No aparece un segundo aviso encima.
+- Cantidad cero se rechaza junto al campo. Al alcanzar todo el stock, el botón queda deshabilitado y el foco permanece en el diálogo, sobre Continuar al carrito.
+- Escape cierra primero la selección de cantidad si está desplegada; una segunda pulsación cierra las sugerencias. El foco regresa al encabezado del carrito o al botón que las abrió.
+- En móvil, el contenido de las sugerencias se desplaza dentro de la ventana y el cierre permanece visible. Se verifica con ancho emulado; no se utiliza un dispositivo físico.
+
+`verify-interactions.cjs` añade comprobaciones para la primera visita, roles, carrito vacío, ausencia de candidatos, otro diálogo abierto, persistencia del indicador y desplazamiento por categoría. `sugerencias-ventana.jpg` muestra esta revisión; la sección grande de sugerencias de las capturas anteriores fue reemplazada por un acceso compacto para volver a abrirla.
+
 Las capturas de esta revisión se guardan en `docs/capturas/`. El mockup conserva autenticación y pago simulados; las sugerencias no usan historial real ni un servicio externo.

@@ -80,6 +80,18 @@ run('state=seedState();state.cart={2:1}');
 assert.ok(run("carrito().includes('Para completar tu compra')"));
 run('state.cart={}');assert.ok(!run("carrito().includes('Para completar tu compra')"));
 
+// Offer once on the first non-empty cart visit; empty carts and other roles do not consume it.
+assert.equal(run("shouldOfferCartSuggestions(false,'cliente','carrito',1,3,false)"),true);
+for (const args of [[true,'cliente','carrito',1,3,false],[false,'cliente','carrito',0,3,false],[false,'cliente','carrito',1,0,false],[false,'trabajador','carrito',1,3,false],[false,'cliente','catalogo',1,3,false],[false,'cliente','carrito',1,3,true]]) {
+  assert.equal(run(`shouldOfferCartSuggestions(${args.map(a=>JSON.stringify(a)).join(',')})`),false);
+}
+run("state.cartSuggestionsSeen=true;commit(()=>{});state=loadState()");
+assert.equal(run('state.cartSuggestionsSeen'),true);
+run("let categoryRefresh=null;refreshStoreCatalog=options=>categoryRefresh=options;location.hash='#catalogo';browseStoreCategory('Lácteos')");
+assert.equal(run('state.category'),'Lácteos');assert.equal(run('categoryRefresh.scroll'),true);
+run("location.hash='#carrito';browseStoreCategory('Todas')");
+assert.equal(run('storeCategoryArrival'),true);assert.equal(run("location.hash.replace(/^#/, '')"),'catalogo');
+
 // The timer advances and wraps, stops while paused/hovered/hidden, and honors reduced motion.
 for (const args of [[false,false,false,false,null],[true,false,false,false,false]]) assert.equal(run(`storeCarouselCanPlay(${args.map(a=>JSON.stringify(a)).join(',')})`),true);
 for (const args of [[true,false,false,false,null],[false,true,false,false,false],[false,false,true,false,false],[false,false,false,true,false],[false,false,false,false,true]]) assert.equal(run(`storeCarouselCanPlay(${args.map(a=>JSON.stringify(a)).join(',')})`),false);
@@ -93,4 +105,4 @@ run('storeCarousel.hover=false;document.hidden=true;scheduleStoreHero()');advanc
 run('document.hidden=false;storeCarousel.paused=null;matchMedia=()=>({matches:true});scheduleStoreHero()');advance(20000);assert.equal(run('storeCarousel.index'),0);
 run('storeCarousel.paused=false;scheduleStoreHero()');advance(6500);assert.equal(run('storeCarousel.index'),1);
 run('storeCarousel.paused=true;scheduleStoreHero()');
-console.log('PASS: cantidades sin selección automática; aviso 10s, pausa, reemplazo y cierre; sugerencias según stock/carrito; carrusel con avance, retorno, pausas y movimiento reducido.');
+console.log('PASS: cantidades; aviso 10s y pausas; sugerencias según stock/carrito y primera visita persistente; categorías con desplazamiento a resultados; carrusel con avance, retorno, pausas y movimiento reducido.');
