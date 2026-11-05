@@ -33,4 +33,8 @@ Se prueban en la vista local del mismo directorio `dist/`, con datos ficticios y
 
 Evidencia: `banner-carrusel.jpg`, `carrito-sugerencias.jpg` y `aviso-carrito.jpg` muestran la revisión de escritorio. Las capturas anteriores de catálogo/detalle corresponden a la primera revisión y se conservan como referencia.
 
+## Publicación
+
+Versión comprobada en `https://fancy-fairy-9b4985.netlify.app/`, conservando el acceso privado de Netlify. La revisión móvil de producción detectó que la barra de herramientas del propietario cubría las acciones del aviso. El aviso se eleva cuando esa barra está presente; la posición normal se conserva en el resto de los alojamientos.
+
 Las capturas de esta revisión se guardan en `docs/capturas/`. El mockup conserva autenticación y pago simulados; las sugerencias no usan historial real ni un servicio externo.

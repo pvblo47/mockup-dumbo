@@ -100,6 +100,8 @@
   .store-carousel-dots button { width: 28px; }
   .store-carousel-controls #store-carousel-toggle { padding-left: 10px; min-width: 85px; }
   .store-cart-notice { right: 16px; bottom: 16px; padding: 17px; }
+  /* The owner's private Netlify toolbar must not cover the purchase actions. */
+  .storefront:has(#nl-hud-frame) .store-cart-notice { bottom: 88px; }
   .store-cart-recommendations { margin-top: 30px; padding-top: 25px; }
   .store-cart-recommendations .store-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .store-cart-recommendations .store-section-heading { align-items: start; }
